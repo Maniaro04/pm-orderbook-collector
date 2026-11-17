@@ -1,0 +1,30 @@
+# Starts the collector if it is not running (twice an hour, and when the workflows are changed).
+name: watchdog
+
+on:
+  schedule:
+    - cron: "17,47 * * * *"
+  push:
+    paths:
+      - ".github/workflows/**"
+  workflow_dispatch:
+
+permissions:
+  actions: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Start the collector if no run is active
+        run: |
+          n=$(gh run list --workflow collect.yml --limit 20 --json status \
+              --jq '[.[] | select(.status != "completed")] | length' 2>/dev/null || echo 0)
+          echo "active collector runs: $n"
+          if [ -z "$n" ] || [ "$n" = "0" ]; then
+            gh workflow run collect.yml --ref main
+          fi
